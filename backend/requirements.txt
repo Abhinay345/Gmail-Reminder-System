@@ -2,4 +2,4 @@ fastapi
 uvicorn[standard]
 pydantic
 beautifulsoup4
-
+psycopg2-binary

@@ -2,6 +2,17 @@ import sqlite3
 import os
 from datetime import datetime, timedelta
 
+# Try importing psycopg2 for PostgreSQL support
+try:
+    import psycopg2
+    import psycopg2.extras
+    HAS_POSTGRES = True
+except ImportError:
+    HAS_POSTGRES = False
+
+DB_URL = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
+IS_POSTGRES = HAS_POSTGRES and (DB_URL is not None)
+
 # Determine database path (use read-write /tmp directory on Vercel/Serverless environments)
 if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or not os.access(os.path.dirname(os.path.abspath(__file__)), os.W_OK):
     DB_PATH = "/tmp/reminder_system.db"
@@ -9,16 +20,36 @@ else:
     DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reminder_system.db")
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if IS_POSTGRES:
+        conn = psycopg2.connect(DB_URL)
+        return conn
+    else:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+def get_cursor(conn):
+    if IS_POSTGRES:
+        return conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    return conn.cursor()
+
+def run_query(cursor, query, params=()):
+    if IS_POSTGRES:
+        query = query.replace('?', '%s')
+        # Replace dynamic types for PostgreSQL in DDL
+        query = query.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'SERIAL PRIMARY KEY')
+        query = query.replace('datetime(due_time)', 'due_time')
+    else:
+        query = query.replace('datetime(due_time)', 'due_time')
+    cursor.execute(query, params)
+    return cursor
 
 def init_db():
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     
-    # 1. Settings table with OAuth fields
-    cursor.execute("""
+    # 1. Settings table
+    run_query(cursor, """
         CREATE TABLE IF NOT EXISTS settings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT,
@@ -39,8 +70,12 @@ def init_db():
     """)
     
     # Run dynamic schema migrations to add columns if database already existed
-    cursor.execute("PRAGMA table_info(settings)")
-    columns = [row[1] for row in cursor.fetchall()]
+    if IS_POSTGRES:
+        cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'settings'")
+        columns = [row[0].lower() for row in cursor.fetchall()]
+    else:
+        cursor.execute("PRAGMA table_info(settings)")
+        columns = [row[1].lower() for row in cursor.fetchall()]
     
     migrations = [
         ("auth_mode", "TEXT DEFAULT 'sandbox'"),
@@ -52,20 +87,20 @@ def init_db():
     ]
     
     for col_name, col_def in migrations:
-        if col_name not in columns:
-            cursor.execute(f"ALTER TABLE settings ADD COLUMN {col_name} {col_def}")
+        if col_name.lower() not in columns:
+            run_query(cursor, f"ALTER TABLE settings ADD COLUMN {col_name} {col_def}")
             print(f"[Migration] Added column '{col_name}' to settings table.")
             
     # Insert default settings if empty
     cursor.execute("SELECT COUNT(*) FROM settings")
     if cursor.fetchone()[0] == 0:
-        cursor.execute("""
+        run_query(cursor, """
             INSERT INTO settings (email, app_password, imap_server, smtp_server, imap_port, smtp_port, sandbox_mode, check_interval_mins, auth_mode)
             VALUES ('', '', 'imap.gmail.com', 'smtp.gmail.com', 993, 587, 1, 5, 'sandbox')
         """)
     
     # 2. Reminders table
-    cursor.execute("""
+    run_query(cursor, """
         CREATE TABLE IF NOT EXISTS reminders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
@@ -80,7 +115,7 @@ def init_db():
     """)
     
     # 3. Processed Emails table
-    cursor.execute("""
+    run_query(cursor, """
         CREATE TABLE IF NOT EXISTS processed_emails (
             uid TEXT PRIMARY KEY,
             processed_at TEXT NOT NULL
@@ -92,8 +127,8 @@ def init_db():
 
 def get_settings():
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM settings ORDER BY id DESC LIMIT 1")
+    cursor = get_cursor(conn)
+    run_query(cursor, "SELECT * FROM settings ORDER BY id DESC LIMIT 1")
     row = cursor.fetchone()
     conn.close()
     if row:
@@ -102,9 +137,9 @@ def get_settings():
 
 def save_settings(settings_dict):
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     
-    cursor.execute("""
+    run_query(cursor, """
         UPDATE settings
         SET email = ?,
             app_password = ?,
@@ -138,9 +173,8 @@ def save_settings(settings_dict):
 
 def save_oauth_tokens(access_token, refresh_token, expires_at):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    # We update access token, refresh token (if present), and expiry
-    cursor.execute("""
+    cursor = get_cursor(conn)
+    run_query(cursor, """
         UPDATE settings
         SET oauth_access_token = ?,
             oauth_refresh_token = COALESCE(?, oauth_refresh_token),
@@ -150,22 +184,21 @@ def save_oauth_tokens(access_token, refresh_token, expires_at):
     conn.commit()
     conn.close()
 
-
 def get_reminders(status=None):
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     if status:
-        cursor.execute("SELECT * FROM reminders WHERE status = ? ORDER BY datetime(due_time) ASC", (status,))
+        run_query(cursor, "SELECT * FROM reminders WHERE status = ? ORDER BY datetime(due_time) ASC", (status,))
     else:
-        cursor.execute("SELECT * FROM reminders ORDER BY datetime(due_time) ASC")
+        run_query(cursor, "SELECT * FROM reminders ORDER BY datetime(due_time) ASC")
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 def get_reminder_by_id(reminder_id):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM reminders WHERE id = ?", (reminder_id,))
+    cursor = get_cursor(conn)
+    run_query(cursor, "SELECT * FROM reminders WHERE id = ?", (reminder_id,))
     row = cursor.fetchone()
     conn.close()
     if row:
@@ -174,44 +207,55 @@ def get_reminder_by_id(reminder_id):
 
 def create_reminder(title, content, due_time, source_email_id=None, source_email_subject=None):
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     created_at = datetime.now().isoformat()
-    cursor.execute("""
+    
+    query = """
         INSERT INTO reminders (title, content, due_time, status, snooze_count, source_email_id, source_email_subject, created_at)
         VALUES (?, ?, ?, 'pending', 0, ?, ?, ?)
-    """, (title, content, due_time, source_email_id, source_email_subject, created_at))
-    reminder_id = cursor.lastrowid
+    """
+    
+    if IS_POSTGRES:
+        query = query.replace('?', '%s') + " RETURNING id"
+        cursor.execute(query, (title, content, due_time, source_email_id, source_email_subject, created_at))
+        reminder_id = cursor.fetchone()[0]
+    else:
+        cursor.execute(query, (title, content, due_time, source_email_id, source_email_subject, created_at))
+        reminder_id = cursor.lastrowid
+        
     conn.commit()
     
-    cursor.execute("SELECT * FROM reminders WHERE id = ?", (reminder_id,))
-    new_reminder = dict(cursor.fetchone())
+    # Fetch new reminder
+    new_query = "SELECT * FROM reminders WHERE id = ?"
+    run_query(cursor, new_query, (reminder_id,))
+    row = cursor.fetchone()
+    new_reminder = dict(row)
     conn.close()
     return new_reminder
 
 def update_reminder_status(reminder_id, status):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE reminders SET status = ? WHERE id = ?", (status, reminder_id))
+    cursor = get_cursor(conn)
+    run_query(cursor, "UPDATE reminders SET status = ? WHERE id = ?", (status, reminder_id))
     conn.commit()
     conn.close()
     return get_reminder_by_id(reminder_id)
 
 def snooze_reminder(reminder_id, minutes):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    # Get current reminder
-    cursor.execute("SELECT * FROM reminders WHERE id = ?", (reminder_id,))
+    cursor = get_cursor(conn)
+    
+    run_query(cursor, "SELECT * FROM reminders WHERE id = ?", (reminder_id,))
     row = cursor.fetchone()
     if not row:
         conn.close()
         return None
     
     reminder = dict(row)
-    # Calculate new due time from now or current due time (from now is better to avoid piling up)
     new_due = (datetime.now() + timedelta(minutes=minutes)).isoformat()
     new_snooze_count = reminder['snooze_count'] + 1
     
-    cursor.execute("""
+    run_query(cursor, """
         UPDATE reminders
         SET due_time = ?, status = 'pending', snooze_count = ?
         WHERE id = ?
@@ -223,27 +267,27 @@ def snooze_reminder(reminder_id, minutes):
 
 def delete_reminder(reminder_id):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM reminders WHERE id = ?", (reminder_id,))
+    cursor = get_cursor(conn)
+    run_query(cursor, "DELETE FROM reminders WHERE id = ?", (reminder_id,))
     conn.commit()
     conn.close()
     return True
 
 def is_email_processed(uid):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT count(*) FROM processed_emails WHERE uid = ?", (uid,))
+    cursor = get_cursor(conn)
+    run_query(cursor, "SELECT count(*) FROM processed_emails WHERE uid = ?", (uid,))
     count = cursor.fetchone()[0]
     conn.close()
     return count > 0
 
 def mark_email_processed(uid):
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     processed_at = datetime.now().isoformat()
     try:
-        cursor.execute("INSERT INTO processed_emails (uid, processed_at) VALUES (?, ?)", (uid, processed_at))
+        run_query(cursor, "INSERT INTO processed_emails (uid, processed_at) VALUES (?, ?)", (uid, processed_at))
         conn.commit()
-    except sqlite3.IntegrityError:
-        pass # Already exists
+    except (sqlite3.IntegrityError, Exception):
+        pass # Already exists or unique constraint violation on PG
     conn.close()
