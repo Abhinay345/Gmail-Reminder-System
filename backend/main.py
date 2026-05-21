@@ -593,7 +593,53 @@ def auth_callback(code: Optional[str] = None, error: Optional[str] = None):
     """
     return StreamingResponse(io.BytesIO(success_html.encode('utf-8')), media_type="text/html")
 
+@app.get("/api/cron/check")
+async def cron_check():
+    """
+    Special endpoint for Vercel Cron Jobs to trigger pending reminders.
+    Since Vercel is serverless, persistent background tasks cannot run 24/7.
+    A Vercel Cron Job hits this endpoint periodically to dispatch due alerts.
+    """
+    try:
+        pending = database.get_reminders(status="pending")
+        now_str = datetime.now().isoformat()
+        triggered_count = 0
+        
+        for reminder in pending:
+            if reminder['due_time'] <= now_str:
+                print(f"[Cron] Triggering reminder #{reminder['id']}: '{reminder['title']}'")
+                updated = database.update_reminder_status(reminder['id'], "triggered")
+                triggered_count += 1
+                
+                # Send Event to SSE if any listener is active
+                event_msg = json.dumps({
+                    "event": "reminder_triggered",
+                    "reminder": updated
+                })
+                for listener in list(listeners):
+                    try:
+                        await listener.put(event_msg)
+                    except Exception:
+                        pass
+                
+                # Send email
+                settings = database.get_settings()
+                if settings:
+                    auth_mode = settings.get('auth_mode', 'sandbox')
+                    if auth_mode == "oauth" and settings.get('oauth_refresh_token'):
+                        import gmail_api
+                        loop = asyncio.get_running_loop()
+                        await loop.run_in_executor(None, gmail_api.gmail_send_email, settings, updated)
+                    elif auth_mode == "app_password" or (auth_mode == "sandbox" and not settings['sandbox_mode']):
+                        loop = asyncio.get_running_loop()
+                        await loop.run_in_executor(None, send_smtp_email, settings, updated)
+                        
+        return {"status": "success", "triggered_reminders": triggered_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Mount frontend files dynamically *after* defining API routes
+
 FRONTEND_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend"))
 if os.path.exists(FRONTEND_PATH):
     app.mount("/", StaticFiles(directory=FRONTEND_PATH, html=True), name="frontend")

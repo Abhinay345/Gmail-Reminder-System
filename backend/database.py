@@ -2,7 +2,11 @@ import sqlite3
 import os
 from datetime import datetime, timedelta
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reminder_system.db")
+# Determine database path (use read-write /tmp directory on Vercel/Serverless environments)
+if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or not os.access(os.path.dirname(os.path.abspath(__file__)), os.W_OK):
+    DB_PATH = "/tmp/reminder_system.db"
+else:
+    DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reminder_system.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
