@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gmail Reminder System | Interactive Dashboard</title>
+    <!-- FontAwesome for Premium Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- CSS Stylesheet -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar glass-panel">
+            <div class="sidebar-header">
+                <div class="logo-icon">
+                    <i class="fas fa-bell" style="color: white;"></i>
+                </div>
+                <span class="brand-text">GmailRemind</span>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a class="nav-item active" data-tab="dashboard">
+                    <i class="fas fa-th-large"></i> Dashboard
+                </a>
+                <a class="nav-item" data-tab="reminders">
+                    <i class="fas fa-calendar-alt"></i> Reminders Board
+                </a>
+                <a class="nav-item" data-tab="inbox">
+                    <i class="fas fa-envelope-open-text"></i> Inbox Scan
+                </a>
+                <a class="nav-item" data-tab="logs">
+                    <i class="fas fa-history"></i> History Logs
+                </a>
+                <a class="nav-item" data-tab="settings">
+                    <i class="fas fa-sliders-h"></i> Configuration
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="status-indicator">
+                    <div id="sidebar-status-dot" class="pulse-dot sandbox"></div>
+                    <span id="sidebar-status-label">Sandbox Mode</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="main-content">
+            <!-- Top Header Bar -->
+            <header class="content-header">
+                <div class="page-title">
+                    <h1 id="greeting-title">Gmail Reminder Hub</h1>
+                    <p>Track important tasks and automate email notifications</p>
+                </div>
+                <div class="header-actions">
+                    <div id="header-clock" class="clock-widget">
+                        <i class="far fa-clock"></i> 12:00:00 PM
+                    </div>
+                    <button id="btn-quick-add" class="btn">
+                        <i class="fas fa-plus"></i> Quick Reminder
+                    </button>
+                </div>
+            </header>
+
+            <!-- Metrics / Stats Cards -->
+            <section class="stats-grid">
+                <div class="stat-card glass-panel pending">
+                    <div class="stat-header">
+                        <span>Total Items</span>
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    <div id="stat-total" class="stat-val">0</div>
+                    <div class="stat-footer">Stored in SQLite</div>
+                </div>
+                <div class="stat-card glass-panel scanning">
+                    <div class="stat-header">
+                        <span>Active Reminders</span>
+                        <i class="fas fa-hourglass-half"></i>
+                    </div>
+                    <div id="stat-pending" class="stat-val">0</div>
+                    <div class="stat-footer" id="stat-urgent-label">0 Impending Alerts</div>
+                </div>
+                <div class="stat-card glass-panel triggered">
+                    <div class="stat-header">
+                        <span>Fired / Overdue</span>
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                    <div id="stat-triggered" class="stat-val">0</div>
+                    <div class="stat-footer">Awaiting Action</div>
+                </div>
+                <div class="stat-card glass-panel completed">
+                    <div class="stat-header">
+                        <span>Completed Tasks</span>
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div id="stat-completed" class="stat-val">0</div>
+                    <div class="stat-footer">
+                        <div class="mini-progress">
+                            <div id="progress-completed-fill" class="mini-progress-fill"></div>
+                        </div>
+                        <span id="progress-completed-pct" style="margin-top:2px; font-size:10px;">0% Rate</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 1: Dashboard -->
+            <div id="section-dashboard" class="content-section active">
+                <div class="dashboard-panels">
+                    <div class="glass-panel" style="padding: 24px; min-height: 400px;">
+                        <h2 class="panel-title">
+                            <span><i class="fas fa-bell"></i> Impending Alerts</span>
+                        </h2>
+                        <div id="dashboard-reminders-container" class="reminders-list">
+                            <!-- Injected by JS -->
+                        </div>
+                    </div>
+                    
+                    <div class="glass-panel" style="padding: 24px; display: flex; flex-direction: column; gap: 20px;">
+                        <h2 class="panel-title">
+                            <span><i class="fas fa-server"></i> Platform Status</span>
+                        </h2>
+                        
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--panel-border); padding: 18px; border-radius: 12px; display: flex; flex-direction: column; gap: 14px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; font-size: 14px;">
+                                <span style="color:var(--text-secondary);">Task Scheduler</span>
+                                <span style="color:var(--accent-teal); font-weight:700;"><i class="fas fa-check-circle"></i> ACTIVE</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; font-size: 14px;">
+                                <span style="color:var(--text-secondary);">Local Server URL</span>
+                                <span style="color:var(--accent-indigo); font-weight:700; font-family: monospace;">http://localhost:8000</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; font-size: 14px;">
+                                <span style="color:var(--text-secondary);">Scanner Daemon</span>
+                                <span id="stat-scanning-status" style="color:var(--text-primary); font-weight:700; background: rgba(99,102,241,0.15); padding: 2px 8px; border-radius:6px; font-size:11px;">IDLE</span>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            <h3 style="font-size: 14px; color: var(--text-secondary); text-transform: uppercase; font-weight:700;">Quick Shortcuts</h3>
+                            <button class="btn" style="width: 100%;" onclick="switchTab('inbox')">
+                                <i class="fas fa-sync-alt"></i> Scan Inbox Messages
+                            </button>
+                            <button class="btn btn-secondary" style="width: 100%;" onclick="switchTab('settings')">
+                                <i class="fas fa-cog"></i> Server Configurations
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2: Reminders Board -->
+            <div id="section-reminders" class="content-section">
+                <div class="dashboard-panels" style="grid-template-columns: repeat(3, 1fr); gap: 24px;">
+                    <!-- Pending Column -->
+                    <div class="glass-panel" style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+                        <h3 style="font-size: 16px; font-weight: 700; border-bottom: 2px solid var(--accent-indigo); padding-bottom: 8px; color: var(--accent-indigo);">
+                            <i class="fas fa-hourglass-half"></i> Pending
+                        </h3>
+                        <div id="board-pending" class="reminders-list" style="max-height: 550px;">
+                            <!-- JS Inject -->
+                        </div>
+                    </div>
+                    
+                    <!-- Triggered Column -->
+                    <div class="glass-panel" style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+                        <h3 style="font-size: 16px; font-weight: 700; border-bottom: 2px solid var(--accent-coral); padding-bottom: 8px; color: var(--accent-coral);">
+                            <i class="fas fa-exclamation-triangle"></i> Triggered
+                        </h3>
+                        <div id="board-triggered" class="reminders-list" style="max-height: 550px;">
+                            <!-- JS Inject -->
+                        </div>
+                    </div>
+
+                    <!-- Completed Column -->
+                    <div class="glass-panel" style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+                        <h3 style="font-size: 16px; font-weight: 700; border-bottom: 2px solid var(--accent-teal); padding-bottom: 8px; color: var(--accent-teal);">
+                            <i class="fas fa-check-double"></i> Completed
+                        </h3>
+                        <div id="board-completed" class="reminders-list" style="max-height: 550px;">
+                            <!-- JS Inject -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 3: Inbox Scan -->
+            <div id="section-inbox" class="content-section">
+                <div class="inbox-layout">
+                    <!-- Left: Emails -->
+                    <div class="glass-panel" style="padding: 24px; display: flex; flex-direction: column; gap: 20px; height: 720px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h2 style="font-size: 18px; font-weight:700;"><i class="fas fa-envelope"></i> Actionable Inbox Messages</h2>
+                            <button id="btn-scan-inbox" class="btn" style="padding: 8px 16px; font-size:12px;">
+                                <i class="fas fa-sync-alt"></i> Scan Inbox
+                            </button>
+                        </div>
+                        <div id="inbox-email-list" class="email-list">
+                            <div class="empty-state">
+                                <i class="fas fa-inbox"></i>
+                                <p>No scanned emails. Click "Scan Inbox" to parse incoming notifications.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Parser Detail Panel -->
+                    <div id="email-detail-wrapper" style="height: 720px;">
+                        <div class="glass-panel" style="padding: 24px; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; color: var(--text-secondary);">
+                            <i class="far fa-envelope" style="font-size: 48px; opacity:0.3; color: var(--accent-indigo); margin-bottom: 12px;"></i>
+                            <p>Select an email to view detailed parsing information.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 4: Logs -->
+            <div id="section-logs" class="content-section">
+                <div class="glass-panel" style="padding: 24px;">
+                    <h2 class="panel-title"><span><i class="fas fa-history"></i> Alert Dispatches History</span></h2>
+                    
+                    <div class="logs-table-container">
+                        <table class="logs-table">
+                            <thead>
+                                <tr>
+                                    <th>Reminder Task</th>
+                                    <th>Email Reference</th>
+                                    <th>Created At</th>
+                                    <th>Fired At</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logs-table-body">
+                                <!-- JS Inject -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 5: Configuration settings -->
+            <div id="section-settings" class="content-section">
+                <div class="glass-panel" style="padding: 32px; max-width: 800px; margin: 0 auto; width: 100%;">
+                    <h2 class="panel-title" style="border-bottom: 1px solid var(--panel-border); padding-bottom: 16px; margin-bottom: 24px;">
+                        <span><i class="fas fa-cog"></i> Server Configurations</span>
+                    </h2>
+                    
+                    <form id="form-settings" style="display: flex; flex-direction: column; gap: 24px;">
+                        <!-- 3-Way Authentication Selector -->
+                        <div class="form-group" style="display:flex; flex-direction:column; gap:8px;">
+                            <label class="form-label" style="font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.05em; color:var(--accent-indigo);">System Authentication Mode</label>
+                            <div class="auth-mode-selector">
+                                <label class="auth-mode-pill active" id="pill-sandbox">
+                                    <input type="radio" name="auth_mode" value="sandbox" checked style="display:none;">
+                                    <i class="fas fa-flask"></i> Sandbox Demo
+                                </label>
+                                <label class="auth-mode-pill" id="pill-app_password">
+                                    <input type="radio" name="auth_mode" value="app_password" style="display:none;">
+                                    <i class="fas fa-key"></i> App Password
+                                </label>
+                                <label class="auth-mode-pill" id="pill-oauth">
+                                    <input type="radio" name="auth_mode" value="oauth" style="display:none;">
+                                    <i class="fab fa-google"></i> Google OAuth 2.0
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Section A: Sandbox Description -->
+                        <div id="section-config-sandbox" class="config-auth-section">
+                            <div style="background: rgba(99, 102, 241, 0.05); border: 1px dashed var(--accent-indigo); padding: 20px; border-radius: 12px; display:flex; gap:16px; align-items:center;">
+                                <i class="fas fa-vial" style="font-size:32px; color:var(--accent-indigo);"></i>
+                                <div>
+                                    <h4 style="font-weight:700; color:white; margin:0 0 4px 0;">Demonstration Sandbox Active</h4>
+                                    <p style="font-size:13px; color:var(--text-secondary); margin:0; line-height:1.4;">The inbox scanner simulates incoming action items and scheduling emails locally. No actual Google account credentials or permissions are required to evaluate features.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Section B: App Password Configs -->
+                        <div id="section-config-app_password" class="config-auth-section hidden">
+                            <div class="settings-grid">
+                                <div class="form-group">
+                                    <label class="form-label" for="user-email">Gmail Address</label>
+                                    <input type="email" id="user-email" class="form-input" placeholder="e.g. yourname@gmail.com">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="user-password">Google App Password</label>
+                                    <input type="password" id="user-password" class="form-input" placeholder="16-character Google App Password">
+                                    <span style="font-size: 11px; color: var(--text-secondary); margin-top: 4px; display:block;">
+                                        <i class="fas fa-info-circle"></i> Requires generating a secure 16-character App Password from Google Account settings.
+                                    </span>
+                                </div>
+                            </div>
+
+                            <h3 style="font-size: 13px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; margin: 20px 0 10px 0; border-bottom: 1px dashed var(--panel-border); padding-bottom: 6px;">
+                                Network Server Connections
+                            </h3>
+
+                            <div class="settings-grid">
+                                <div class="form-group">
+                                    <label class="form-label" for="imap-server">IMAP Host</label>
+                                    <input type="text" id="imap-server" class="form-input" value="imap.gmail.com">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="imap-port">IMAP SSL Port</label>
+                                    <input type="number" id="imap-port" class="form-input" value="993">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="smtp-server">SMTP Host</label>
+                                    <input type="text" id="smtp-server" class="form-input" value="smtp.gmail.com">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="smtp-port">SMTP TLS Port</label>
+                                    <input type="number" id="smtp-port" class="form-input" value="587">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Section C: OAuth 2.0 Configs -->
+                        <div id="section-config-oauth" class="config-auth-section hidden">
+                            <div class="settings-grid">
+                                <div class="form-group">
+                                    <label class="form-label" for="oauth-email">Gmail Address</label>
+                                    <input type="email" id="oauth-email" class="form-input" placeholder="e.g. yourname@gmail.com">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="oauth-client-id">OAuth Client ID</label>
+                                    <input type="text" id="oauth-client-id" class="form-input" placeholder="e.g. 12345678-abc.apps.googleusercontent.com">
+                                </div>
+                                <div class="form-group" style="grid-column: span 2;">
+                                    <label class="form-label" for="oauth-client-secret">OAuth Client Secret</label>
+                                    <input type="password" id="oauth-client-secret" class="form-input" placeholder="Client secret string from Google Console">
+                                </div>
+                            </div>
+
+                            <div style="display:flex; justify-content:space-between; align-items:center; background: rgba(255,255,255,0.02); border: 1px solid var(--panel-border); padding: 20px; border-radius: 12px; margin-top:20px;">
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <span style="font-weight:700; color:white; font-size:14px;">Google Account Handshake</span>
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <span style="font-size:12px; color:var(--text-secondary);">Authorization status:</span>
+                                        <span id="oauth-status-badge" class="badge triggered" style="font-size:10px; font-weight:700;">NOT CONNECTED</span>
+                                    </div>
+                                </div>
+                                <button type="button" id="btn-oauth-authorize" class="btn btn-secondary" style="padding: 10px 24px;">
+                                    <i class="fab fa-google"></i> Authorize Gmail System
+                                </button>
+                            </div>
+
+                            <div class="developer-guide" style="margin-top:24px;">
+                                <div class="guide-toggle" id="guide-header" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; background: rgba(99,102,241,0.08); padding: 12px 18px; border-radius: 8px; border:1px solid rgba(99,102,241,0.2);">
+                                    <span style="font-size:13px; font-weight:700; color:var(--accent-indigo);"><i class="fas fa-book"></i> Google Cloud Client setup instructions</span>
+                                    <i id="guide-arrow" class="fas fa-chevron-down" style="color:var(--accent-indigo); font-size:12px; transition:transform 0.2s;"></i>
+                                </div>
+                                <div id="guide-content" class="guide-steps hidden" style="background:rgba(255,255,255,0.01); border: 1px solid var(--panel-border); border-top:none; border-radius: 0 0 8px 8px; padding:20px; font-size:12px; line-height:1.6; color:var(--text-secondary); display:flex; flex-direction:column; gap:10px;">
+                                    <p style="margin:0 0 6px 0; color:white; font-weight:700;">Steps to generate Credentials in Google Console:</p>
+                                    <ol style="margin:0; padding-left:16px; display:flex; flex-direction:column; gap:6px;">
+                                        <li>Go to <strong><a href="https://console.cloud.google.com/" target="_blank" style="color:var(--accent-indigo); text-decoration:none;">Google Cloud Console</a></strong> and create a new project.</li>
+                                        <li>Navigate to the <strong>APIs & Services Dashboard</strong>, click <strong>"Enable APIs and Services"</strong>, search for <strong>Gmail API</strong>, and click <strong>Enable</strong>.</li>
+                                        <li>Set up the <strong>OAuth Consent Screen</strong>: Choose <strong>External</strong> user type, fill basic email info, and add scope: <code>https://www.googleapis.com/auth/gmail.readonly</code> and <code>https://www.googleapis.com/auth/gmail.send</code>. Add your email as a <strong>Test User</strong>.</li>
+                                        <li>Go to <strong>Credentials</strong> -> click <strong>"Create Credentials"</strong> -> select <strong>OAuth Client ID</strong>.</li>
+                                        <li>Choose application type <strong>Web Application</strong>.</li>
+                                        <li>Under <strong>Authorized Redirect URIs</strong>, add: <code style="background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:4px; color:white; font-family:monospace;">http://localhost:8000/api/auth/callback</code>.</li>
+                                        <li>Click <strong>Create</strong>, copy the resulting <strong>Client ID</strong> and <strong>Client Secret</strong>, paste them here and save!</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-grid" style="grid-template-columns: 1fr; margin-top: 8px;">
+                            <div class="form-group">
+                                <label class="form-label" for="check-interval">Daemon Loop Interval (Minutes)</label>
+                                <input type="number" id="check-interval" class="form-input" value="5" min="1" max="60">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn" style="align-self: flex-start; padding: 12px 32px; margin-top: 12px;">
+                            <i class="fas fa-save"></i> Save Configurations
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Form: Add Custom Reminder -->
+    <div id="modal-add-reminder" class="modal-overlay">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h3 class="modal-title">Schedule Custom Reminder</h3>
+                <span id="btn-close-modal" class="close-btn"><i class="fas fa-times"></i></span>
+            </div>
+            
+            <form id="form-quick-reminder" style="display: flex; flex-direction: column; gap: 18px;">
+                <div class="form-group">
+                    <label class="form-label" for="reminder-title">Reminder Title</label>
+                    <input type="text" id="reminder-title" class="form-input" placeholder="e.g. Call Shivam regarding project launch" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="reminder-desc">Description (Optional)</label>
+                    <textarea id="reminder-desc" class="form-input" placeholder="Add extra details, URLs, or checklists..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="reminder-due-time">Trigger Deadline</label>
+                    <input type="datetime-local" id="reminder-due-time" class="form-input" required>
+                </div>
+                
+                <button type="submit" class="btn" style="margin-top: 10px; justify-content: center;">
+                    <i class="fas fa-paper-plane"></i> Activate Reminder
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Live Floating Overlay Notifications Box -->
+    <div id="trigger-overlay-container" class="trigger-overlay">
+        <!-- Live triggers get injected here -->
+    </div>
+
+    <!-- App Script -->
+    <script src="js/app.js"></script>
+</body>
+</html>

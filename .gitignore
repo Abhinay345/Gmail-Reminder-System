@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.venv/
+env/
+venv/
+ENV/
+
+# Databases
+backend/reminder_system.db
+*.db
+*.sqlite3
+
+# IDEs
+.vscode/
+.idea/
+
+# Local logs & OS files
+*.log
+Thumbs.db
+Desktop.ini
